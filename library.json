@@ -1,0 +1,36 @@
+{
+    "name": "single_phase_inverter",
+    "version": "0.0.1",
+    "description": "Single-phase inverter control with SOGI-PLL, dq transforms, and current/voltage loops",
+    "keywords": "inverter, single-phase, SOGI, PLL, control, OwnTech",
+    "repository":
+    {
+        "type": "git",
+        "url": "https://github.com/owntech-foundation/single_phase_inverter.git"
+    },
+    "build":
+    {
+        "srcFilter": "-<**>"
+    },
+    "license": "LGPL-2.1",
+    "homepage": "https://docs.owntech.org/",
+    "frameworks": ["zephyr"],
+    "platforms": ["ststm32"],
+    "headers": ["singlePhaseInverter.h", "sogi.h"],
+    "authors":
+    [
+        {
+            "name": "Jean Alinei",
+            "email": "jean.alinei@owntech.org",
+            "maintainer": true
+        },
+        {
+            "name": "Régis Ruelland",
+            "email": "regis.ruelland@laas.fr"
+        },
+        {
+            "name": "Luiz Villa",
+            "email": "luiz.villa@laas.fr"
+        }
+    ]
+ }
