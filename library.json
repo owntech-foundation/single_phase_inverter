@@ -10,7 +10,7 @@
     },
     "build":
     {
-        "srcFilter": "-<**>"
+        "srcDir": "src"
     },
     "license": "LGPL-2.1",
     "homepage": "https://docs.owntech.org/",
