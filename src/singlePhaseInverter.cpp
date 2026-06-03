@@ -32,7 +32,7 @@
 singlePhaseInverter::singlePhaseInverter() : _w(0.0F) {}
 
 // Initialization function for singlePhaseInverter
-int8_t singlePhaseInverter::init(inverter_mode mode, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts) {
+int8_t singlePhaseInverter::init(inverter_mode mode, modulation_scheme modulation, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts) {
 
     // parameters of the SOGI filter
     float32_t rise_time = 1.0F * 2.0F * PI / grid_w0;
@@ -43,6 +43,7 @@ int8_t singlePhaseInverter::init(inverter_mode mode, float32_t V_bus, float32_t 
     float32_t Kr = 500.0;
 
     _mode = mode;
+    _modulation = modulation;
 
     _grid_Vpk = grid_Vpk;
     _w = grid_w0;
@@ -126,8 +127,7 @@ int8_t singlePhaseInverter::init(inverter_mode mode, float32_t V_bus, float32_t 
     _sync = false;
     _sync_delay_counter = 0; 
     _sync_min_delay = 1000;
-
-
+    _phase_shift_leg2_rad = 0.0F;
 
     return 0;  // Return 0 to indicate success
 }
@@ -153,14 +153,25 @@ float32_t singlePhaseInverter::calculateDuty(float32_t vgrid_meas, float32_t igr
 
     if(_mode == FORMING){
 
-        _Idq_ref_delta.d = _voltage_d_pi.calculateWithReturn(_Vdq_ref.d, _Vdq.d); 
-        _Idq_ref_delta.q = _voltage_q_pi.calculateWithReturn(_Vdq_ref.q, _Vdq.q); 
+        if(_Vdq_ref.d <= 0.0F){
+            _voltage_d_pi.reset();
+            _voltage_q_pi.reset();
+            _current_d_pi.reset();
+            _current_q_pi.reset();
+            _Idq_ref_delta.d = 0.0F;
+            _Idq_ref_delta.q = 0.0F;
+            _Vdq_output.d = 0.0F;
+            _Vdq_output.q = 0.0F;
+        } else {
+        _Idq_ref_delta.d = _voltage_d_pi.calculateWithReturn(_Vdq_ref.d, _Vdq.d);
+        _Idq_ref_delta.q = _voltage_q_pi.calculateWithReturn(_Vdq_ref.q, _Vdq.q);
 
-        _Vdq_output.d = _current_d_pi.calculateWithReturn(_Idq_ref.d + _Idq_ref_delta.d, _Idq.d); 
-        _Vdq_output.q = _current_q_pi.calculateWithReturn(_Idq_ref.q + _Idq_ref_delta.q, _Idq.q); 
+        _Vdq_output.d = _current_d_pi.calculateWithReturn(_Idq_ref.d + _Idq_ref_delta.d, _Idq.d);
+        _Vdq_output.q = _current_q_pi.calculateWithReturn(_Idq_ref.q + _Idq_ref_delta.q, _Idq.q);
 
-        _Vdq_output.d = _Vdq_output.d + _Vdq_ref.d; 
+        _Vdq_output.d = _Vdq_output.d + _Vdq_ref.d;
         _Vdq_output.q = _Vdq_output.q + _Vdq_ref.q;
+        }
 
     }else if(_mode == FOLLOWING && _sync == true){
 
@@ -273,9 +284,35 @@ void singlePhaseInverter::setSyncOff(){
 void singlePhaseInverter::setMode(inverter_mode mode){
     // Reinitialize controller keeping stored parameters and timing
     // This also resets internal controller states appropriately for the selected mode.
-    init(mode, _V_bus, _grid_Vpk, _w_ref, _Ts);
+    init(mode, _modulation, _V_bus, _grid_Vpk, _w_ref, _Ts);
 }
 
 void singlePhaseInverter::setWRef(float32_t w_ref){
     _w_ref = w_ref;
+}
+
+float32_t singlePhaseInverter::getDutyLeg2(){
+    float32_t theta_leg2;
+    if (_modulation == BIPOLAR) {
+        // Complement of leg 1: inverted reference, synchronised carrier.
+        theta_leg2 = _theta + PI + _phase_shift_leg2_rad;
+    } else {
+        // Same reference as leg 1; carrier phase shift (180°) must be set
+        // in hardware via shield.power.setPhaseShift(LEG2, 180).
+        theta_leg2 = _theta + _phase_shift_leg2_rad;
+    }
+    clarke_t Vab_leg2 = Transform::rotation_to_clarke(_Vdq_output, theta_leg2);
+    return Vab_leg2.alpha / (2.0F * _V_bus) + 0.5F;
+}
+
+void singlePhaseInverter::stepPhaseShiftUp(){
+    _phase_shift_leg2_rad += PI / 180.0F;
+}
+
+void singlePhaseInverter::stepPhaseShiftDown(){
+    _phase_shift_leg2_rad -= PI / 180.0F;
+}
+
+float32_t singlePhaseInverter::getPhaseShiftDeg(){
+    return _phase_shift_leg2_rad * 180.0F / PI;
 }

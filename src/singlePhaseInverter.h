@@ -30,12 +30,18 @@
 
 #include "sogi.h"
 #include "transform.h"
+#include "filters.h"
 
 
 typedef enum {
     FORMING = 0,
-    FOLLOWING=1
-}inverter_mode;
+    FOLLOWING = 1
+} inverter_mode;
+
+typedef enum {
+    BIPOLAR = 0,
+    UNIPOLAR = 1
+} modulation_scheme;
 
 
 class singlePhaseInverter {
@@ -44,7 +50,7 @@ public:
     singlePhaseInverter();
 
     // Initialization function
-    int8_t init(inverter_mode mode, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts);
+    int8_t init(inverter_mode mode, modulation_scheme modulation, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts);
 
     // Reset function
     void reset();
@@ -90,10 +96,20 @@ public:
     // Set angular frequency reference (rad/s)
     void setWRef(float32_t w_ref);
 
+    // Duty cycle for leg 2, computed with the current phase shift
+    float32_t getDutyLeg2();
+
+    // Shift leg 2 phase by +1 or -1 degree
+    void stepPhaseShiftUp();
+    void stepPhaseShiftDown();
+
+    // Current leg-2 phase shift in degrees
+    float32_t getPhaseShiftDeg();
 
 private:
     // Internal state variables
     inverter_mode _mode;
+    modulation_scheme _modulation;
 
     dqo_t _power;
 
@@ -127,6 +143,7 @@ private:
 
     Sogi _sogi_i;
     Sogi _sogi_v;
+
     PidParams _pll_pi_params;    ///< PI controller parameters.
     Pid _pll_pi;                 ///< PI controller.
 
@@ -144,7 +161,8 @@ private:
     float32_t _w;            ///< Angular frequency.
     float32_t _w_ref;        ///< Reference angular frequency.
 
-    float32_t _duty_cycle;   ///< Internal duty cycle.
+    float32_t _duty_cycle;            ///< Internal duty cycle.
+    float32_t _phase_shift_leg2_rad;  ///< Extra phase offset applied to leg 2 (rad).
 
     float32_t _V_bus;   ///< Internal bus voltage.
 
