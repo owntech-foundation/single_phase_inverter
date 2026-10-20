@@ -15,16 +15,19 @@ including SOGI-based quadrature generation, a PLL, and dq current/voltage loops.
 ### Calculations and lifecycle
 - `singlePhaseInverter()`  
   Constructs the controller and initializes internal members to safe defaults.
-- `int8_t init(inverter_mode mode, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts)`  
+- `int8_t init(inverter_mode mode, modulation_scheme modulation, float32_t V_bus, float32_t grid_Vpk, float32_t grid_w0, float32_t Ts)`  
   Initializes all control parameters (SOGI, PLL, current/voltage PI loops) and
-  sets operating mode, bus voltage, grid peak voltage, nominal grid frequency,
-  and sampling period. Returns `0` on success.
+  sets operating mode, modulation (see below), bus voltage, grid peak voltage,
+  nominal grid frequency, and sampling period. Returns `0` on success.
 - `void reset()`  
   Resets internal controller states (PI integrators, sync state, angles). Use
   this to restart the control after a fault or mode change.
 - `float32_t calculateDuty(float32_t vgrid_meas, float32_t igrid_meas)`  
   Main control step. Updates PLL, dq transforms, current/voltage loops, and
-  returns the duty cycle to apply.
+  returns the duty cycle of leg 1: `d1 = v_out / (2 V_bus) + 0.5`.
+- `float32_t getDutyLeg2()`  
+  Duty cycle of leg 2 for the same output voltage, according to the
+  modulation (see below). Call it after `calculateDuty()`.
 
 ### Getters
 - `dqo_t getVdq()`  
@@ -49,6 +52,11 @@ including SOGI-based quadrature generation, a PLL, and dq current/voltage loops.
   Returns the estimated electrical angle (rad).
 - `bool getSync()`  
   Returns `true` if the controller has synchronized in FOLLOWING mode.
+- `modulation_scheme getModulation()`  
+  Returns the modulation given to `init()`, e.g. to choose the convention of
+  leg 2 (`initBuck` / `initBoost`).
+- `float32_t getPhaseShiftDeg()`  
+  Returns the extra angle applied to the leg 2 reference, in degrees.
 
 ### Setters and configuration
 - `void setVBus(float32_t V_bus)`  
@@ -65,6 +73,67 @@ including SOGI-based quadrature generation, a PLL, and dq current/voltage loops.
   Switches operating mode and reinitializes controllers with stored parameters.
 - `void setWRef(float32_t w_ref)`  
   Sets the reference angular frequency (rad/s).
+- `void setCurrentPi(float32_t Kp, float32_t Ti, float32_t bound)`  
+  Current loop PI (d and q): gain in V/A, integral time in s, output bound in
+  +/- V. The output is a correction added to the voltage reference (FORMING)
+  or to the measured voltage (FOLLOWING); the bound does not limit the output
+  voltage itself. Kept by `init()` and `setMode()`. Resets the current loops:
+  call it with the power off.
+- `void setVoltagePi(float32_t Kp, float32_t Ti, float32_t bound)`  
+  Voltage loop PI (d and q, FORMING): gain in A/V, integral time in s, output
+  bound in +/- A, added to the current reference. Same rules.
+- `void stepPhaseShiftUp()` / `void stepPhaseShiftDown()`  
+  Shift the leg 2 reference angle by +/- 1 degree (tests, e.g. harmonic
+  compensation). They do not shift the PWM carrier.
+
+Default PI parameters (tuned for the TWIST bench):
+
+| Loop | Kp | Ti | Bound |
+|---|---|---|---|
+| Current, FORMING | 0.001 V/A | 0.001 / 3000 s | +/- 30 V |
+| Current, FOLLOWING | 0.001 V/A | 0.0003 s | +/- 30 V |
+| Voltage | 0.01 A/V | 0.003 s | +/- 30 A |
+
+## Modulation
+
+Both legs share the same PWM carrier (no phase shift). The average output
+voltage is `(2 d1 - 1) V_bus` in both modulations.
+
+| `modulation_scheme` | `getDutyLeg2()` | Leg 2 | Output |
+|---|---|---|---|
+| `UNIPOLAR` | `1 - d1` | buck convention (`initBuck`): the duty cycle drives its high-side switch | three levels, ripple at 2 f_sw |
+| `BIPOLAR` | `d1` | complementary convention (`initBoost`): the duty cycle drives its low-side switch, so its high side is the complement of leg 1's | two levels, ripple at f_sw, constant common-mode voltage |
+
+```cpp
+inverter.init(FORMING, UNIPOLAR, V_bus, grid_Vpk, W0, TS);
+
+shield.power.initBuck(LEG1);
+if (inverter.getModulation() == UNIPOLAR)
+    shield.power.initBuck(LEG2);
+else
+    shield.power.initBoost(LEG2);
+
+/* in the control task */
+shield.power.setDutyCycle(LEG1, inverter.calculateDuty(v_meas, i_meas));
+shield.power.setDutyCycle(LEG2, inverter.getDutyLeg2());
+```
+
+Before version 0.0.2 the names were inverted: `BIPOLAR` returned `1 - d1`
+(unipolar output on two buck legs) and `UNIPOLAR` returned `d1` with a 180 degree
+carrier shift. Applications that used `BIPOLAR` with two buck legs now use
+`UNIPOLAR`.
+
+## Host tests
+
+```
+tests/host/run.sh [path to control_library]
+```
+
+Builds the library with `trigo`, `transform` and `pid` of `control_library`
+for the PC (CMSIS-DSP and Zephyr logging replaced by shims in
+`tests/host/shim`) and checks the leg duties of both modulations and the PI
+parameters. By default `control_library` is looked for next to this
+repository.
 
 ## Notes
 - Depends on `transform`, `pid`, `trigo`, and math/type headers from the OwnTech stack. Make sure your `platformio.ini` includes: 
