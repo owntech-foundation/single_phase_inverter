@@ -293,12 +293,15 @@ void singlePhaseInverter::setWRef(float32_t w_ref){
 
 float32_t singlePhaseInverter::getDutyLeg2(){
     float32_t theta_leg2;
-    if (_modulation == BIPOLAR) {
-        // Complement of leg 1: inverted reference, synchronised carrier.
+    if (_modulation == UNIPOLAR) {
+        // Opposite reference (theta + pi): d2 = 1 - d1. Leg 2 in buck
+        // convention on the same carrier as leg 1: three-level output,
+        // ripple at twice the switching frequency.
         theta_leg2 = _theta + PI + _phase_shift_leg2_rad;
     } else {
-        // Same reference as leg 1; carrier phase shift (180°) must be set
-        // in hardware via shield.power.setPhaseShift(LEG2, 180).
+        // Same reference: d2 = d1. Leg 2 in complementary (boost)
+        // convention on the same carrier as leg 1: its high-side switch is
+        // the complement of leg 1's, two-level output.
         theta_leg2 = _theta + _phase_shift_leg2_rad;
     }
     clarke_t Vab_leg2 = Transform::rotation_to_clarke(_Vdq_output, theta_leg2);
@@ -311,6 +314,10 @@ void singlePhaseInverter::stepPhaseShiftUp(){
 
 void singlePhaseInverter::stepPhaseShiftDown(){
     _phase_shift_leg2_rad -= PI / 180.0F;
+}
+
+modulation_scheme singlePhaseInverter::getModulation(){
+    return _modulation;
 }
 
 float32_t singlePhaseInverter::getPhaseShiftDeg(){

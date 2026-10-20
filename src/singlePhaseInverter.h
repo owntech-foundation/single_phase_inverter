@@ -38,6 +38,17 @@ typedef enum {
     FOLLOWING = 1
 } inverter_mode;
 
+/**
+ * Modulation of the H-bridge, i.e. how getDutyLeg2() is computed from the
+ * same output voltage as calculateDuty() (leg 1). Both legs share the same
+ * carrier (no phase shift); the average output is (2 d1 - 1) V_bus in both.
+ *
+ * - UNIPOLAR: d2 = 1 - d1, leg 2 in buck convention (duty cycle applied to
+ *   its high-side switch). Three-level output, ripple at 2 f_sw.
+ * - BIPOLAR: d2 = d1, leg 2 in complementary (boost) convention (duty cycle
+ *   applied to its low-side switch): leg 2's high side is the complement
+ *   of leg 1's. Two-level output, ripple at f_sw, constant common mode.
+ */
 typedef enum {
     BIPOLAR = 0,
     UNIPOLAR = 1
@@ -96,14 +107,17 @@ public:
     // Set angular frequency reference (rad/s)
     void setWRef(float32_t w_ref);
 
-    // Duty cycle for leg 2, computed with the current phase shift
+    // Duty cycle for leg 2, see modulation_scheme for the leg 2 convention
     float32_t getDutyLeg2();
 
-    // Shift leg 2 phase by +1 or -1 degree
+    // Modulation given to init()
+    modulation_scheme getModulation();
+
+    // Shift the leg 2 reference angle by +1 or -1 degree (tests)
     void stepPhaseShiftUp();
     void stepPhaseShiftDown();
 
-    // Current leg-2 phase shift in degrees
+    // Current leg 2 reference angle shift in degrees
     float32_t getPhaseShiftDeg();
 
 private:
