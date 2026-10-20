@@ -50,7 +50,6 @@ int8_t singlePhaseInverter::init(inverter_mode mode, modulation_scheme modulatio
     _w_ref = grid_w0;
     _Ts = Ts;
     _theta = 0;
-    _next_theta = 0;
     _V_bus = V_bus;
 
 
@@ -73,16 +72,6 @@ int8_t singlePhaseInverter::init(inverter_mode mode, modulation_scheme modulatio
     _Vdq_ref.d = 0.0;
     _Vdq_ref.q = 0.0;
 
-    _Idq_ref_max.d = 8.0;
-    _Idq_ref_max.q = 1.0;
-    _Idq_ref_min.d = -0.1;
-    _Idq_ref_min.q = -0.1;
-
-    _Vdq_ref_max.d = 30.0;
-    _Vdq_ref_max.q = 30.0;
-    _Vdq_ref_min.d = -0.1;
-    _Vdq_ref_min.q = -0.1;
-
     _Idq_ref_delta.d = 0.0;
     _Idq_ref_delta.q = 0.0;
 
@@ -103,6 +92,12 @@ int8_t singlePhaseInverter::init(inverter_mode mode, modulation_scheme modulatio
         _current_pi_params.upper_bound = 30;
         _current_pi_params.lower_bound = -30;
     }
+    if (_current_pi_custom) {
+        _current_pi_params.Kp = _current_kp;
+        _current_pi_params.Ti = _current_ti;
+        _current_pi_params.upper_bound = _current_bound;
+        _current_pi_params.lower_bound = -_current_bound;
+    }
     _current_d_pi.init(_current_pi_params);
     _current_q_pi.init(_current_pi_params);
     _current_d_pi.reset();
@@ -116,6 +111,12 @@ int8_t singlePhaseInverter::init(inverter_mode mode, modulation_scheme modulatio
     _voltage_pi_params.N = 1.0;
     _voltage_pi_params.upper_bound = 30;
     _voltage_pi_params.lower_bound = -30;
+    if (_voltage_pi_custom) {
+        _voltage_pi_params.Kp = _voltage_kp;
+        _voltage_pi_params.Ti = _voltage_ti;
+        _voltage_pi_params.upper_bound = _voltage_bound;
+        _voltage_pi_params.lower_bound = -_voltage_bound;
+    }
 
     _voltage_d_pi.init(_voltage_pi_params);
     _voltage_q_pi.init(_voltage_pi_params);
@@ -289,6 +290,38 @@ void singlePhaseInverter::setMode(inverter_mode mode){
 
 void singlePhaseInverter::setWRef(float32_t w_ref){
     _w_ref = w_ref;
+}
+
+void singlePhaseInverter::setCurrentPi(float32_t Kp, float32_t Ti, float32_t bound){
+    _current_pi_custom = true;
+    _current_kp = Kp;
+    _current_ti = Ti;
+    _current_bound = bound;
+
+    _current_pi_params.Kp = Kp;
+    _current_pi_params.Ti = Ti;
+    _current_pi_params.upper_bound = bound;
+    _current_pi_params.lower_bound = -bound;
+    _current_d_pi.init(_current_pi_params);
+    _current_q_pi.init(_current_pi_params);
+    _current_d_pi.reset();
+    _current_q_pi.reset();
+}
+
+void singlePhaseInverter::setVoltagePi(float32_t Kp, float32_t Ti, float32_t bound){
+    _voltage_pi_custom = true;
+    _voltage_kp = Kp;
+    _voltage_ti = Ti;
+    _voltage_bound = bound;
+
+    _voltage_pi_params.Kp = Kp;
+    _voltage_pi_params.Ti = Ti;
+    _voltage_pi_params.upper_bound = bound;
+    _voltage_pi_params.lower_bound = -bound;
+    _voltage_d_pi.init(_voltage_pi_params);
+    _voltage_q_pi.init(_voltage_pi_params);
+    _voltage_d_pi.reset();
+    _voltage_q_pi.reset();
 }
 
 float32_t singlePhaseInverter::getDutyLeg2(){

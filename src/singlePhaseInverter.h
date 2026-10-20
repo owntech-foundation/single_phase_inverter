@@ -107,6 +107,18 @@ public:
     // Set angular frequency reference (rad/s)
     void setWRef(float32_t w_ref);
 
+    // Current loop PI (d and q, both modes): proportional gain (V/A),
+    // integral time (s) and output bound (+/- V, a correction added to
+    // the voltage reference or the measured voltage). Replaces the
+    // defaults, also after setMode(). Resets the current loops: call it
+    // with the power off.
+    void setCurrentPi(float32_t Kp, float32_t Ti, float32_t bound);
+
+    // Voltage loop PI (d and q, FORMING): proportional gain (A/V),
+    // integral time (s) and output bound (+/- A, added to the current
+    // reference). Same rules as setCurrentPi().
+    void setVoltagePi(float32_t Kp, float32_t Ti, float32_t bound);
+
     // Duty cycle for leg 2, see modulation_scheme for the leg 2 convention
     float32_t getDutyLeg2();
 
@@ -129,27 +141,16 @@ private:
 
     dqo_t _Vdq;
     dqo_t _Vdq_ref;
-    dqo_t _Vdq_ref_max;
-    dqo_t _Vdq_ref_min;
     dqo_t _Vdq_output;
 
     dqo_t _Idq;
     dqo_t _Idq_ref;
-    dqo_t _Idq_ref_max;
-    dqo_t _Idq_ref_min;
     dqo_t _Idq_ref_delta;
-
-    float32_t _Id_ref_delta = 0.0;
-    float32_t _Iq_ref_delta = 0.0;
-    float32_t _Vd_ref_max = 20.0;
-    float32_t _Vd_ref_min = 0.0;
 
     clarke_t _Vab;
     clarke_t _Vab_output;
     clarke_t _Iab;
     float32_t _Vond;
-
-    float32_t _R_load = 10;
 
     float32_t _grid_Vpk;
     float32_t _grid_w0;
@@ -169,9 +170,18 @@ private:
     Pid _voltage_d_pi;                 ///< PI controller for the voltage loop.
     Pid _voltage_q_pi;                 ///< PI controller for the voltage loop.
 
+    // PI parameters given by setCurrentPi() / setVoltagePi(), kept by init()
+    bool _current_pi_custom = false;
+    float32_t _current_kp = 0.0F;
+    float32_t _current_ti = 0.0F;
+    float32_t _current_bound = 0.0F;
+    bool _voltage_pi_custom = false;
+    float32_t _voltage_kp = 0.0F;
+    float32_t _voltage_ti = 0.0F;
+    float32_t _voltage_bound = 0.0F;
+
 
     float32_t _theta;        ///< Current phase angle.
-    float32_t _next_theta;   ///< Next phase angle.
     float32_t _w;            ///< Angular frequency.
     float32_t _w_ref;        ///< Reference angular frequency.
 
